@@ -1,60 +1,41 @@
 #![allow(unused)]
 use std::{f32::consts::PI, thread::sleep, time::Duration};
 
-use rand::distr::slice::Choose;
+use clap::{Arg, Parser};
+use rand::distr::{Uniform, slice::Choose};
 use rand::prelude::*;
-use rand_distr::{Normal, Uniform};
 
+use random_walk::agent::Agent;
 use raylib::prelude::*;
 
-struct Polar {
-    rho: f32,
-    theta: f32,
+#[derive(Parser, Debug)]
+struct Args {
+    #[arg(short, long, default_value_t = 1)]
+    num_agents: u8,
+    #[arg(long, default_value_t = 800)]
+    window_height: i32,
+    #[arg(long, default_value_t = 800)]
+    window_width: i32,
 }
-impl From<Vector2> for Polar {
-    fn from(value: Vector2) -> Self {
-        let x = value.x;
-        let y = value.y;
-        Polar {
-            rho: (x.powi(2) + y.powi(2)).sqrt(),
-            theta: f32::atan2(y, x),
-        }
-    }
-}
-impl Into<Vector2> for Polar {
-    fn into(self) -> Vector2 {
-        Vector2 {
-            x: self.rho * self.theta.cos(),
-            y: self.rho * self.theta.sin(),
-        }
-    }
-}
-
 fn main() {
-    let num_agents = 5;
-    let (mut rl, thread) = raylib::init().size(400, 400).title("Random walker").build();
+    let args = Args::parse();
 
+    let num_agents = args.num_agents;
+    let (mut rl, thread) = raylib::init()
+        .size(args.window_width, args.window_height)
+        .title("Random walker")
+        .build();
+    rl.set_target_fps(60);
     let mut rng = rand::rng();
-    let mut current = Vector2::new(400. / 2., 400. / 2.);
-    let size = Vector2::new(2., 2.);
-    let dist = Uniform::new(0., 15.).unwrap();
-    let angles = [0., PI / 2., PI, 3. / 2. * PI];
-    // let dist = Choose::new().unwrap();
+    let mut agents: Vec<Agent> = (0..args.num_agents)
+        .map(|_| Agent::random_init(args.window_height, args.window_width, &mut rng))
+        .collect();
     while !rl.window_should_close() {
         let mut d = rl.begin_drawing(&thread);
 
-        // d.clear_background(Color::WHITE);
-        let delta: Vector2 = Polar {
-            rho: rng.sample(dist),
-            // theta:#rng.sample(dist),
-            theta: *(angles.choose(&mut rng).unwrap()),
+        for agent in &mut agents {
+            agent.update(&mut rng);
+            agent.draw(&mut d);
         }
-        .into();
-        println!("{:?}", delta);
-        let mut prev = current.clone();
-        current += Into::<Vector2>::into(delta);
-        d.draw_rectangle_v(current, size, Color::RED);
-        d.draw_line_v(prev, current, Color::RED);
-        sleep(Duration::from_millis(100));
     }
 }
